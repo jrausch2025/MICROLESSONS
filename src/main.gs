@@ -331,7 +331,40 @@ function callOpenAI(system, user) {
   const options = { method: "post", headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" }, payload: JSON.stringify(payload) };
   const response = fetchWithRetry(CONFIG.API.OPENAI, options);
   if (!response) throw new Error("OpenAI API call failed after retries.");
-  return JSON.parse(JSON.parse(response.getContentText()).choices[0].message.content);
+  const parsedResponse = JSON.parse(response.getContentText());
+  const messageContent = parsedResponse.choices[0].message.content;
+
+  try {
+    const lesson = JSON.parse(messageContent);
+    const hasRequiredKeys = lesson && typeof lesson === "object" && ["title", "hook", "tags", "content"].every(key => key in lesson);
+    if (!hasRequiredKeys) throw new Error("Missing required keys");
+    return lesson;
+  } catch (error) {
+    Logger.log("[WARN] Invalid JSON from OpenAI");
+    return {
+      title: "Fallback Lesson",
+      hook: "We couldn't generate your lesson right now, so here's a quick reminder.",
+      tags: ["fallback"],
+      content: {
+        "The Situation": "Our system couldn't create a full lesson at this time.",
+        "Core Framework": {
+          overview: "Review a key concept you recently learned and note one actionable insight.",
+          components: [],
+        },
+        "Real Implementation": {
+          scenario: "Take a moment to revisit a recent project and identify one improvement you can make today.",
+          results: "Document a single takeaway you can apply this week.",
+        },
+        "Critical Considerations": [
+          "Ensure your next learning session is scheduled.",
+          "Capture any follow-up questions to explore.",
+        ],
+        "Action Item": "Review your learning notes and choose one topic to reinforce today.",
+        "Bottom Line": "Consistency matters—use today to reinforce a core concept.",
+      },
+      metadata: { fallback: true },
+    };
+  }
 }
 
 /* =================================================================
